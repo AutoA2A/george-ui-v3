@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>我的待办 · 工作台</title>
+  <link rel="stylesheet" href="../css/tokens.css">
+  <link rel="stylesheet" href="../css/shell.css">
+  <link rel="stylesheet" href="../css/components.css">
+</head>
+<body data-page="todo-mine">
+  <template id="page-content">
+    <div class="panel">
+      <!-- 页签 (R084~R086) -->
+      <div class="list-head">
+        <div class="list-tabs" id="tabs">
+          <button class="list-tab active" data-tab="all">全部 <span class="count" id="c-all">0</span></button>
+          <button class="list-tab" data-tab="mine">我发起的 <span class="count" id="c-mine">0</span></button>
+          <button class="list-tab" data-tab="todo">待我审批 <span class="count" id="c-todo">0</span></button>
+          <button class="list-tab" data-tab="overdue">已逾期 <span class="count" id="c-overdue">0</span></button>
+        </div>
+      </div>
+
+      <!-- 一体式搜索 (真实系统) -->
+      <div class="filter-inline">
+        <div class="search-combo">
+          <select id="f-field">
+            <option value="title">流程名称</option>
+            <option value="id">单据编号</option>
+            <option value="applicant">发起人</option>
+          </select>
+          <input id="f-kw" placeholder="输入关键字查询待办…">
+        </div>
+        <button class="btn" id="f-reset">重置</button>
+        <button class="btn primary" id="f-go">查询</button>
+      </div>
+
+      <!-- 操作区 -->
+      <div class="op-bar">
+        <div class="op-left">
+          <button class="btn primary" id="batch-pass">批量通过<span class="caret">▾</span></button>
+          <button class="btn" id="batch-urge">催办</button>
+        </div>
+        <div class="op-right">
+          <span class="sel-count" id="sel-count">共 0 条待办</span>
+          <button class="icon-btn" title="刷新" id="op-refresh"><svg viewBox="0 0 24 24"><path d="M20 11a8 8 0 10-2 5m2 3v-5h-5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
+        </div>
+      </div>
+
+      <!-- 待办表格:点击行或"审批"进入审批流 -->
+      <div class="table-wrap">
+        <table class="g-table">
+          <thead>
+            <tr>
+              <th class="col-idx">序号</th>
+              <th>单据编号</th>
+              <th>流程名称</th>
+              <th>业务类型</th>
+              <th>当前节点</th>
+              <th>发起人</th>
+              <th>紧急度</th>
+              <th>提交时间</th>
+              <th>状态</th>
+              <th class="col-op">操作</th>
+            </tr>
+          </thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+
+      <!-- 分页 + 统计 -->
+      <div class="list-foot">
+        <div class="list-stats">共 <b id="total">0</b> 条记录</div>
+        <div class="foot-right">
+          <select class="page-size"><option>10 条/页</option><option>20 条/页</option></select>
+          <div class="pager">
+            <button class="pg" disabled>‹</button>
+            <button class="pg active">1</button>
+            <button class="pg" disabled>›</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </template>
+
+  <script src="../js/nav-config.js"></script>
+  <script src="../js/data.js"></script>
+  <script src="../js/shell.js"></script>
+  <script>
+  window.onShellReady = function (Shell) {
+    var D = window.DEMO_DATA;
+    var tag = D.statusTag, utag = D.urgencyTag;
+    var state = { tab: 'all', kw: '', field: 'title' };
+
+    // 为演示构造归类:第1条为我发起,其余为待我审批;加急=逾期示例
+    D.todos.forEach(function (t, i) {
+      t._mine = (i === 0);
+      t._todo = (i !== 0);
+      t._overdue = (t.urgency === '加急');
+    });
+
+    function filtered() {
+      return D.todos.filter(function (t) {
+        if (state.tab === 'mine' && !t._mine) return false;
+        if (state.tab === 'todo' && !t._todo) return false;
+        if (state.tab === 'overdue' && !t._overdue) return false;
+        if (state.kw) {
+          var v = (t[state.field] || '').toString().toLowerCase();
+          if (v.indexOf(state.kw.toLowerCase()) < 0) return false;
+        }
+        return true;
+      });
+    }
+
+    function counts() {
+      document.getElementById('c-all').textContent = D.todos.length;
+      document.getElementById('c-mine').textContent = D.todos.filter(function (t) { return t._mine; }).length;
+      document.getElementById('c-todo').textContent = D.todos.filter(function (t) { return t._todo; }).length;
+      document.getElementById('c-overdue').textContent = D.todos.filter(function (t) { return t._overdue; }).length;
+    }
+
+    function openFlow(t) {
+      Shell.openApproval({
+        title: t.title,
+        subtitle: t.id,
+        sections: t.sections,
+        nodes: t.nodes,
+        actions: [
+          { text: '驳回', type: 'danger', onClick: function () { Shell.toast('已驳回:' + t.id, 'error'); Shell.closeDrawer(); } },
+          { text: '转交', type: '', onClick: function () { Shell.toast('已转交给下一处理人(演示)'); } },
+          { text: '同意', type: 'primary', onClick: function () { Shell.toast('审批已通过:' + t.id, 'success'); Shell.closeDrawer(); } }
+        ]
+      });
+    }
+
+    function render() {
+      var list = filtered();
+      var tb = document.getElementById('rows');
+      tb.innerHTML = '';
+      if (!list.length) {
+        tb.innerHTML = '<tr><td colspan="10"><div class="g-empty">没有符合条件的待办</div></td></tr>';
+      } else {
+        list.forEach(function (t) {
+          var tr = document.createElement('tr');
+          tr.style.cursor = 'pointer';
+          tr.innerHTML =
+            '<td class="col-idx">' + t.seq + '</td>' +
+            '<td>' + t.id + '</td>' +
+            '<td class="ellipsis">' + t.title + '</td>' +
+            '<td>' + t.bizType + '</td>' +
+            '<td class="ellipsis">' + t.currentNode + '</td>' +
+            '<td>' + t.applicant + '</td>' +
+            '<td><span class="tag dot ' + (utag[t.urgency] || 'neutral') + '">' + t.urgency + '</span></td>' +
+            '<td>' + t.submitTime + '</td>' +
+            '<td><span class="tag ' + (tag[t.status] || 'neutral') + '">' + t.status + '</span></td>' +
+            '<td class="col-op"><div class="row-ops">' +
+              '<button class="link-btn" data-act="flow">审批</button>' +
+              '<button class="link-btn" data-act="urge">催办</button>' +
+            '</div></td>';
+          tr.addEventListener('click', function (e) {
+            var act = e.target.getAttribute('data-act');
+            if (act === 'urge') { e.stopPropagation(); Shell.toast('已催办:' + t.id); return; }
+            openFlow(t);
+          });
+          tb.appendChild(tr);
+        });
+      }
+      document.getElementById('total').textContent = list.length;
+      document.getElementById('sel-count').textContent = '共 ' + list.length + ' 条待办';
+    }
+
+    // 页签
+    document.getElementById('tabs').addEventListener('click', function (e) {
+      var b = e.target.closest('.list-tab'); if (!b) return;
+      [].forEach.call(this.querySelectorAll('.list-tab'), function (x) { x.classList.remove('active'); });
+      b.classList.add('active'); state.tab = b.getAttribute('data-tab'); render();
+    });
+    // 搜索
+    document.getElementById('f-go').onclick = function () {
+      state.kw = document.getElementById('f-kw').value.trim();
+      state.field = document.getElementById('f-field').value; render();
+    };
+    document.getElementById('f-kw').addEventListener('keydown', function (e) { if (e.key === 'Enter') document.getElementById('f-go').click(); });
+    document.getElementById('f-reset').onclick = function () {
+      document.getElementById('f-kw').value = ''; state.kw = ''; render();
+    };
+    document.getElementById('batch-pass').onclick = function () { Shell.toast('批量通过所选待办(演示)', 'success'); };
+    document.getElementById('batch-urge').onclick = function () { Shell.toast('已批量催办(演示)'); };
+    document.getElementById('op-refresh').onclick = function () { render(); Shell.toast('已刷新'); };
+    counts();
+    render();
+  };
+  </script>
+</body>
+</html>

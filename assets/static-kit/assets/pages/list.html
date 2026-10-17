@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>产品列表 · George Design</title>
+  <link rel="stylesheet" href="../css/tokens.css">
+  <link rel="stylesheet" href="../css/shell.css">
+  <link rel="stylesheet" href="../css/components.css">
+</head>
+<body data-page="prod-list">
+  <template id="page-content">
+    <div class="panel">
+      <!-- 内容页签 + 右侧漏斗 (R084~R086) -->
+      <div class="list-head">
+        <div class="list-tabs" id="tabs"></div>
+        <button class="icon-btn" title="高级筛选" id="btn-filter"><svg viewBox="0 0 24 24"><path d="M3 5h18l-7 8v5l-4 2v-7z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg></button>
+      </div>
+      <!-- 一体式搜索:[下拉|输入框…][重置][查询] -->
+      <div class="filter-inline">
+        <div class="search-combo">
+          <select id="f-field">
+            <option value="name">产品名称</option>
+            <option value="uid">产品唯一ID</option>
+            <option value="code">产品型号</option>
+          </select>
+          <input id="f-kw" placeholder="请输入关键字搜索">
+        </div>
+        <button class="btn" id="f-reset">重置</button>
+        <button class="btn primary" id="f-search">查询</button>
+      </div>
+      <!-- 操作工具栏:左侧动作(带▾) + 右侧 已选/导出/设置 -->
+      <div class="op-bar">
+        <div class="op-left">
+          <a class="btn primary" href="form.html">上传产品 <span class="caret">▾</span></a>
+          <button class="btn" id="op-download">全量下载 <span class="caret">▾</span></button>
+          <button class="btn" id="op-del">删除 <span class="caret">▾</span></button>
+          <button class="btn" id="op-edit">修改 <span class="caret">▾</span></button>
+          <button class="btn" id="op-ai">AI图片 <span class="caret">▾</span></button>
+        </div>
+        <div class="op-right">
+          <span class="sel-count">已选 <b id="sel-n">0</b> 条</span>
+          <button class="btn" id="op-export">导出产品</button>
+          <button class="icon-btn" title="列设置" id="op-cols"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3" stroke="currentColor" stroke-width="1.4"/></svg></button>
+        </div>
+      </div>
+      <!-- 表格 (R102~R108) -->
+      <div class="table-wrap">
+        <table class="g-table">
+          <thead><tr>
+            <th class="col-check"><input type="checkbox" id="check-all"></th>
+            <th class="col-idx">序号</th>
+            <th>产品唯一ID</th><th>产品名称</th><th>父产品编号</th><th>产品型号</th>
+            <th>英文名称</th><th class="num">价格</th><th class="num">库存</th><th>状态</th><th>主图</th>
+            <th class="col-op">操作</th>
+          </tr></thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+      <!-- 分页 + 统计 (R112~R117) -->
+      <div class="list-foot">
+        <div class="list-stats">共 <b id="st-total">0</b> 条记录</div>
+        <div class="foot-right">
+          <select class="page-size" id="page-size"><option value="8">8条/页</option><option value="12">12条/页</option><option value="20">20条/页</option></select>
+          <div class="pager" id="pager"></div>
+        </div>
+      </div>
+    </div>
+  </template>
+
+  <script src="../js/nav-config.js"></script>
+  <script src="../js/data.js"></script>
+  <script src="../js/shell.js"></script>
+  <script>
+  window.onShellReady = function (Shell) {
+    var D = window.DEMO_DATA, all = D.products.slice();
+    var state = { tab: '全部', field: 'name', kw: '', page: 1, size: 8, sel: {} };
+    var tabs = [['全部'], ['在售'], ['预售'], ['缺货']];
+
+    function filtered() {
+      return all.filter(function (p) {
+        if (state.tab !== '全部' && p.status !== state.tab) return false;
+        if (state.kw) { var k = state.kw.toLowerCase(); if (String(p[state.field] || '').toLowerCase().indexOf(k) < 0) return false; }
+        return true;
+      });
+    }
+    function renderTabs() {
+      var box = document.getElementById('tabs'); box.innerHTML = '';
+      tabs.forEach(function (t) {
+        var name = t[0];
+        var n = name === '全部' ? all.length : all.filter(function (p) { return p.status === name; }).length;
+        var b = document.createElement('button');
+        b.className = 'list-tab' + (state.tab === name ? ' active' : '');
+        b.innerHTML = name + ' <span class="count">' + (n > 99 ? '99+' : n) + '</span>';
+        b.onclick = function () { state.tab = name; state.page = 1; state.sel = {}; render(); };
+        box.appendChild(b);
+      });
+    }
+    function render() {
+      renderTabs();
+      var list = filtered();
+      var start = (state.page - 1) * state.size;
+      var pageRows = list.slice(start, start + state.size);
+      var tb = document.getElementById('rows'); tb.innerHTML = '';
+      if (!pageRows.length) tb.innerHTML = '<tr><td colspan="12"><div class="g-empty">没有符合条件的产品</div></td></tr>';
+      pageRows.forEach(function (p) {
+        var tr = document.createElement('tr');
+        tr.innerHTML =
+          '<td class="col-check"><input type="checkbox" data-id="' + p.id + '" ' + (state.sel[p.id] ? 'checked' : '') + '></td>' +
+          '<td class="col-idx">' + p.seq + '</td>' +
+          '<td>' + p.uid + '</td>' +
+          '<td class="ellipsis" title="' + p.name + '">' + p.name + '</td>' +
+          '<td>' + p.parent + '</td>' +
+          '<td>' + p.code + '</td>' +
+          '<td class="ellipsis" title="' + p.en + '">' + p.en + '</td>' +
+          '<td class="num">' + p.price.toFixed(1) + '</td>' +
+          '<td class="num">' + p.stock + '</td>' +
+          '<td><span class="tag dot ' + (D.statusTag[p.status] || 'neutral') + '">' + p.status + '</span></td>' +
+          '<td><img class="cell-thumb" src="' + p.thumb + '" alt=""></td>' +
+          '<td class="col-op"><div class="row-ops">' +
+            '<button class="link-btn" data-view="' + p.id + '">详情 <span class="caret">▾</span></button>' +
+            '<a class="link-btn" href="form.html?id=' + p.id + '">编辑</a>' +
+            '<button class="link-btn" data-supply="' + p.id + '">发起补充</button>' +
+            '<a class="link-btn" href="cards.html">导入图片</a>' +
+          '</div></td>';
+        tb.appendChild(tr);
+      });
+      tb.querySelectorAll('input[type=checkbox]').forEach(function (cb) {
+        cb.onchange = function () { if (cb.checked) state.sel[cb.dataset.id] = true; else delete state.sel[cb.dataset.id]; updateBulk(); };
+      });
+      tb.querySelectorAll('[data-view]').forEach(function (btn) { btn.onclick = function () { openView(btn.getAttribute('data-view')); }; });
+      tb.querySelectorAll('[data-supply]').forEach(function (btn) { btn.onclick = function () { Shell.toast('已发起补充申请(演示)', 'success'); }; });
+      document.getElementById('st-total').textContent = list.length;
+      renderPager(list.length);
+      updateBulk();
+    }
+    function renderPager(total) {
+      var pages = Math.max(1, Math.ceil(total / state.size));
+      var box = document.getElementById('pager'); box.innerHTML = '';
+      function pg(label, page, disabled, active) {
+        var b = document.createElement('button'); b.className = 'pg' + (active ? ' active' : ''); b.textContent = label; b.disabled = disabled;
+        b.onclick = function () { state.page = page; render(); }; box.appendChild(b);
+      }
+      pg('|‹', 1, state.page <= 1);
+      pg('‹', state.page - 1, state.page <= 1);
+      for (var i = 1; i <= pages; i++) pg(i, i, false, i === state.page);
+      pg('›', state.page + 1, state.page >= pages);
+      pg('›|', pages, state.page >= pages);
+    }
+    function updateBulk() {
+      document.getElementById('sel-n').textContent = Object.keys(state.sel).length;
+    }
+    function openView(id) {
+      var p = all.filter(function (x) { return x.id === id; })[0]; if (!p) return;
+      Shell.openDrawer({
+        title: '产品详情 · ' + p.name,
+        body: '<div class="panel"><div class="section-head"><h3>基本信息</h3></div><div class="info-grid" style="--info-cols:2">' +
+          [['产品唯一ID', p.uid], ['产品型号', p.code], ['父产品编号', p.parent], ['英文名称', p.en],
+           ['分类', p.cat], ['品牌', p.brand], ['规格', p.spec], ['价格', p.price.toFixed(1) + ' 元'],
+           ['库存', p.stock], ['区域', p.region], ['供应商', p.supplier], ['状态', p.status]]
+            .map(function (kv) { return '<div class="info-item"><div class="k">' + kv[0] + '</div><div class="v">' + (kv[1] || '-') + '</div></div>'; }).join('') +
+          '<div class="info-item wide"><div class="k">产品说明</div><div class="v">' + p.desc + '</div></div>' +
+          '</div></div>',
+        actions: [{ text: '关闭', onClick: Shell.closeDrawer }, { text: '查看完整详情', primary: true, onClick: function () { location.href = 'detail.html?id=' + p.id; } }]
+      });
+    }
+
+    document.getElementById('f-search').onclick = function () { state.field = document.getElementById('f-field').value; state.kw = document.getElementById('f-kw').value.trim(); state.page = 1; render(); };
+    document.getElementById('f-reset').onclick = function () { document.getElementById('f-kw').value = ''; state.kw = ''; state.page = 1; render(); };
+    document.getElementById('f-kw').addEventListener('keydown', function (e) { if (e.key === 'Enter') document.getElementById('f-search').click(); });
+    document.getElementById('page-size').onchange = function (e) { state.size = parseInt(e.target.value, 10); state.page = 1; render(); };
+    document.getElementById('check-all').onchange = function (e) {
+      filtered().slice((state.page - 1) * state.size, state.page * state.size).forEach(function (p) { if (e.target.checked) state.sel[p.id] = true; else delete state.sel[p.id]; });
+      render();
+    };
+    ['op-download', 'op-del', 'op-edit', 'op-ai', 'op-export', 'op-cols', 'btn-filter'].forEach(function (id) {
+      var el = document.getElementById(id); if (el) el.onclick = function () { Shell.toast('该操作为演示占位'); };
+    });
+    render();
+  };
+  </script>
+</body>
+</html>

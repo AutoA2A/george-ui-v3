@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>产品图册 · George Design</title>
+  <link rel="stylesheet" href="../css/tokens.css">
+  <link rel="stylesheet" href="../css/shell.css">
+  <link rel="stylesheet" href="../css/components.css">
+</head>
+<body data-page="prod-cards">
+  <template id="page-content">
+    <div class="page-head">
+      <div>
+        <h1 class="page-title">产品图册</h1>
+        <p class="page-desc">卡片列表:分类/搜索 → 操作 → 卡片集合,图片占稳定区域(Figma 卡片规范)</p>
+      </div>
+      <a class="btn primary" href="form.html">+ 新建产品</a>
+    </div>
+    <div class="panel">
+      <div class="filter-bar">
+        <div class="filter-grid" style="--filter-cols:4">
+          <div class="filter-item"><label>关键字</label><input class="field" id="f-kw" placeholder="产品名 / 编号"></div>
+          <div class="filter-item"><label>分类</label><select class="field" id="f-cat"><option value="">全部</option></select></div>
+          <div class="filter-item"></div>
+          <div class="filter-item filter-actions"><button class="btn primary" id="f-search">搜索</button><button class="btn" id="f-reset">重置</button></div>
+        </div>
+      </div>
+      <div class="card-grid" id="grid" style="--card-cols:4"></div>
+      <div class="list-foot"><div class="list-stats">共 <b id="st-total">0</b> 个产品</div><div></div></div>
+    </div>
+  </template>
+
+  <script src="../js/nav-config.js"></script>
+  <script src="../js/data.js"></script>
+  <script src="../js/shell.js"></script>
+  <script>
+  window.onShellReady = function (Shell) {
+    var D = window.DEMO_DATA, all = D.products.slice();
+    var state = { kw: '', cat: '' };
+    Array.from(new Set(all.map(function (p) { return p.cat; }))).forEach(function (c) { document.getElementById('f-cat').innerHTML += '<option>' + c + '</option>'; });
+    // 简单色块占位图(避免外链图片,file:// 可离线)
+    var palette = ['#e5edde', '#d8e4ff', '#fdf3e8', '#eceafa', '#f7ffef', '#f0f0f0'];
+    function thumb(p, i) {
+      var c = palette[i % palette.length];
+      return '<div class="thumb" style="background:' + c + ';display:flex;align-items:center;justify-content:center;color:var(--g-text-sub);font-size:13px">' + p.cat + '</div>';
+    }
+    function render() {
+      var list = all.filter(function (p) {
+        if (state.cat && p.cat !== state.cat) return false;
+        if (state.kw && (p.name + p.code).toLowerCase().indexOf(state.kw.toLowerCase()) < 0) return false;
+        return true;
+      });
+      var g = document.getElementById('grid'); g.innerHTML = '';
+      if (!list.length) g.innerHTML = '<div class="g-empty" style="grid-column:1/-1">没有符合条件的产品</div>';
+      list.forEach(function (p, i) {
+        var card = document.createElement('div'); card.className = 'g-card';
+        card.innerHTML = thumb(p, i) +
+          '<div class="body">' +
+            '<div class="c-title" title="' + p.name + '">' + p.name + '</div>' +
+            '<div class="c-field">编号:' + p.code + '</div>' +
+            '<div class="c-field">规格:' + p.spec + '</div>' +
+            '<div class="c-field">价格:' + p.price.toFixed(1) + ' 元 · 库存 ' + p.stock + '</div>' +
+            '<div style="margin-top:2px"><span class="tag dot ' + (D.statusTag[p.status] || 'neutral') + '">' + p.status + '</span></div>' +
+          '</div>' +
+          '<div class="c-ops">' +
+            '<a class="link-btn" href="detail.html?id=' + p.id + '">详情</a>' +
+            '<a class="link-btn" href="form.html?id=' + p.id + '">编辑</a>' +
+          '</div>';
+        g.appendChild(card);
+      });
+      document.getElementById('st-total').textContent = list.length;
+    }
+    document.getElementById('f-search').onclick = function () { state.kw = document.getElementById('f-kw').value.trim(); state.cat = document.getElementById('f-cat').value; render(); };
+    document.getElementById('f-reset').onclick = function () { document.getElementById('f-kw').value = ''; document.getElementById('f-cat').value = ''; state.kw = state.cat = ''; render(); };
+    render();
+  };
+  </script>
+</body>
+</html>

@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>新建产品 · George Design</title>
+  <link rel="stylesheet" href="../css/tokens.css">
+  <link rel="stylesheet" href="../css/shell.css">
+  <link rel="stylesheet" href="../css/components.css">
+</head>
+<body data-page="prod-new">
+  <template id="page-content">
+    <div class="page-head">
+      <div style="display:flex;align-items:center;gap:12px">
+        <a class="btn" href="list.html">‹ 返回</a>
+        <h1 class="page-title" id="f-title">新建产品</h1>
+      </div>
+    </div>
+
+    <div class="panel">
+      <!-- 模块一:基本信息,3 列栅格 (R155) -->
+      <div class="form-module">
+        <h3 class="m-title">基本信息</h3>
+        <div class="form-grid" style="--form-cols:3">
+          <div class="form-item"><div class="f-label"><span class="req">*</span>产品名称</div><input class="field" id="in-name" placeholder="请输入产品名称"></div>
+          <div class="form-item"><div class="f-label"><span class="req">*</span>产品编号 <span class="hint">(唯一)</span></div><input class="field" id="in-code" placeholder="如 XF-5721"></div>
+          <div class="form-item"><div class="f-label">分类</div>
+            <select class="field" id="in-cat"><option value="">请选择</option></select>
+          </div>
+          <div class="form-item"><div class="f-label">品牌</div><input class="field" id="in-brand" placeholder="请输入品牌"></div>
+          <div class="form-item"><div class="f-label">规格</div><input class="field" id="in-spec" placeholder="如 750×1500mm"></div>
+          <div class="form-item"><div class="f-label">区域</div>
+            <select class="field" id="in-region"><option value="">请选择</option></select>
+          </div>
+        </div>
+      </div>
+      <!-- 模块二:价格与库存,单位输入 + 右对齐语义 -->
+      <div class="form-module">
+        <h3 class="m-title">价格与库存</h3>
+        <div class="form-grid" style="--form-cols:3">
+          <div class="form-item"><div class="f-label"><span class="req">*</span>销售价(元)</div><input class="field" id="in-price" inputmode="decimal" placeholder="0.00"><div class="f-tip" id="tip-price">保留两位小数</div></div>
+          <div class="form-item"><div class="f-label">库存数量</div><input class="field" id="in-stock" inputmode="numeric" placeholder="0"></div>
+          <div class="form-item"><div class="f-label">状态</div>
+            <select class="field" id="in-status"><option>在售</option><option>预售</option><option>缺货</option><option>停售</option></select>
+          </div>
+        </div>
+      </div>
+      <!-- 模块三:长文本 (宽字段 R151 / 长文本换行 R149) -->
+      <div class="form-module">
+        <h3 class="m-title">产品说明</h3>
+        <div class="form-grid" style="--form-cols:1">
+          <div class="form-item wide"><div class="f-label">说明 <span class="hint">(最多 200 字)</span></div><textarea class="field" id="in-desc" maxlength="200" placeholder="请输入产品说明"></textarea></div>
+        </div>
+      </div>
+      <!-- 吸底操作栏 -->
+      <div class="drawer-foot" style="border-top:1px solid var(--g-border-soft);border-radius:0 0 8px 8px">
+        <a class="btn" href="list.html">取消</a>
+        <button class="btn primary" id="btn-save">保存</button>
+      </div>
+    </div>
+  </template>
+
+  <script src="../js/nav-config.js"></script>
+  <script src="../js/data.js"></script>
+  <script src="../js/shell.js"></script>
+  <script>
+  window.onShellReady = function (Shell) {
+    var D = window.DEMO_DATA;
+    Array.from(new Set(D.products.map(function (p) { return p.cat; }))).forEach(function (c) { document.getElementById('in-cat').innerHTML += '<option>' + c + '</option>'; });
+    Array.from(new Set(D.products.map(function (p) { return p.region; }))).forEach(function (r) { document.getElementById('in-region').innerHTML += '<option>' + r + '</option>'; });
+
+    // 编辑模式:带 ?id= 时回填
+    var id = new URLSearchParams(location.search).get('id');
+    if (id) {
+      var p = D.products.filter(function (x) { return x.id === id; })[0];
+      if (p) {
+        document.getElementById('f-title').textContent = '编辑产品 · ' + p.name;
+        document.getElementById('in-name').value = p.name;
+        document.getElementById('in-code').value = p.code;
+        document.getElementById('in-cat').value = p.cat;
+        document.getElementById('in-brand').value = p.brand;
+        document.getElementById('in-spec').value = p.spec;
+        document.getElementById('in-region').value = p.region;
+        document.getElementById('in-price').value = p.price.toFixed(2);
+        document.getElementById('in-stock').value = p.stock;
+        document.getElementById('in-status').value = p.status;
+        document.getElementById('in-desc').value = p.desc;
+      }
+    }
+
+    // 失焦校验:异常态保留内容并提示 (R166~R168)
+    function markError(item, msg) { item.classList.add('error'); var tip = item.querySelector('.f-tip') || item.appendChild(Object.assign(document.createElement('div'), { className: 'f-tip' })); tip.textContent = msg; }
+    function clearError(item, msg) { item.classList.remove('error'); var tip = item.querySelector('.f-tip'); if (tip && msg != null) tip.textContent = msg; }
+
+    var nameEl = document.getElementById('in-name'), nameItem = nameEl.closest('.form-item');
+    nameEl.addEventListener('blur', function () { if (!nameEl.value.trim()) markError(nameItem, '产品名称必填'); else clearError(nameItem); });
+    var priceEl = document.getElementById('in-price'), priceItem = priceEl.closest('.form-item');
+    priceEl.addEventListener('blur', function () {
+      if (priceEl.value && isNaN(parseFloat(priceEl.value))) markError(priceItem, '请输入有效数字'); else clearError(priceItem, '保留两位小数');
+    });
+
+    document.getElementById('btn-save').onclick = function () {
+      var ok = true;
+      if (!nameEl.value.trim()) { markError(nameItem, '产品名称必填'); ok = false; }
+      if (!document.getElementById('in-code').value.trim()) { var ci = document.getElementById('in-code').closest('.form-item'); markError(ci, '产品编号必填'); ok = false; }
+      if (!ok) { Shell.toast('请完善必填项', 'error'); return; }
+      Shell.toast('已保存(演示)', 'success');
+      setTimeout(function () { location.href = 'list.html'; }, 900);
+    };
+  };
+  </script>
+</body>
+</html>

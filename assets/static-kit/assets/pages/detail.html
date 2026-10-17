@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>产品详情 · George Design</title>
+  <link rel="stylesheet" href="../css/tokens.css">
+  <link rel="stylesheet" href="../css/shell.css">
+  <link rel="stylesheet" href="../css/components.css">
+</head>
+<body data-page="prod-list">
+  <template id="page-content">
+    <div class="page-head">
+      <div style="display:flex;align-items:center;gap:12px">
+        <a class="btn" href="list.html">‹ 返回列表</a>
+        <h1 class="page-title" id="d-title">产品详情</h1>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn" id="d-full">查看全貌</button>
+        <button class="btn" id="d-upload">上传结果</button>
+        <button class="btn" id="d-copy">复制编号</button>
+        <a class="btn primary" id="d-edit" href="#">编辑</a>
+      </div>
+    </div>
+
+    <!-- 流程步骤 (R136~R140) -->
+    <div class="panel" style="margin-bottom:12px"><div class="detail-steps" id="steps"></div></div>
+
+    <!-- 两栏:左信息 / 右流程记录 (对齐真实详情) -->
+    <div class="detail-cols">
+      <div class="detail-main">
+        <div class="panel">
+          <div class="section-head"><h3>基本信息</h3><button class="link-btn" id="toggle-sec">收起次要信息</button></div>
+          <div class="info-grid" id="info-main" style="--info-cols:4"></div>
+          <div class="info-grid" id="info-sec" style="--info-cols:4;border-top:1px solid var(--g-border-soft)"></div>
+        </div>
+        <div class="panel">
+          <div class="section-head"><h3>供货记录</h3></div>
+          <div class="table-wrap" style="max-height:220px;overflow:auto">
+            <table class="g-table">
+              <thead><tr><th>批次</th><th>供应商</th><th class="num">数量</th><th class="num">单价</th><th>入库日期</th></tr></thead>
+              <tbody id="supply-rows"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div class="detail-side">
+        <div class="flow-panel">
+          <div class="section-head"><h3>流程记录</h3></div>
+          <div class="flow-list" id="flow"></div>
+        </div>
+      </div>
+    </div>
+  </template>
+
+  <script src="../js/nav-config.js"></script>
+  <script src="../js/data.js"></script>
+  <script src="../js/shell.js"></script>
+  <script>
+  window.onShellReady = function (Shell) {
+    var D = window.DEMO_DATA;
+    var id = new URLSearchParams(location.search).get('id') || 'P001';
+    var p = D.products.filter(function (x) { return x.id === id; })[0] || D.products[0];
+
+    document.getElementById('d-title').textContent = '产品详情 · ' + p.name;
+    document.getElementById('d-edit').href = 'form.html?id=' + p.id;
+    document.getElementById('d-copy').onclick = function () { Shell.toast('已复制:' + p.code, 'success'); };
+
+    // 居中弹窗示例①:查看全貌(只读信息,用 modal 而非贴边面板,避免错位)
+    document.getElementById('d-full').onclick = function () {
+      var pairs = [
+        ['产品唯一ID', p.uid], ['产品型号', p.code], ['父产品编号', p.parent], ['英文名称', p.en],
+        ['产品名称', p.name], ['分类', p.cat], ['品牌', p.brand], ['规格', p.spec],
+        ['价格(元)', p.price.toFixed(1)], ['库存', p.stock], ['区域', p.region], ['状态', p.status],
+        ['供应商', p.supplier], ['更新时间', p.updated], ['紧急度', p.urgency], ['创建人', '张明']
+      ];
+      var grid = pairs.map(function (kv) {
+        return '<div class="info-item"><div class="k">' + kv[0] + '</div><div class="v">' + (kv[1] !== '' && kv[1] != null ? kv[1] : '-') + '</div></div>';
+      }).join('');
+      Shell.openModal({
+        title: '查看全貌 · ' + p.name, size: 'lg',
+        body: '<div class="panel"><div class="section-head"><h3>完整信息</h3></div><div class="info-grid" style="--info-cols:3">' + grid + '</div></div>',
+        actions: [{ text: '关闭', onClick: Shell.closeModal }]
+      });
+    };
+
+    // 居中弹窗示例②:上传处理结果(表单型 modal,底部 取消/提交)
+    document.getElementById('d-upload').onclick = function () {
+      Shell.openModal({
+        title: '上传处理结果', size: 'md',
+        body: '<div class="form-item wide"><label class="f-label"><span class="req">*</span>处理说明</label>'
+            + '<textarea class="field" id="m-note" placeholder="描述本次处理的关键调整/注意点,附件一起回传"></textarea></div>'
+            + '<div class="form-item wide" style="margin-top:12px"><label class="f-label"><span class="req">*</span>上传文件</label>'
+            + '<div class="upload-dnd">＋ 点击或拖拽文件到此区域上传<div class="u-hint">支持 PNG / JPG / PDF / ZIP</div></div></div>',
+        actions: [
+          { text: '取消', onClick: Shell.closeModal },
+          { text: '提交结果', type: 'primary', onClick: function () {
+              var note = (document.getElementById('m-note') || {}).value || '';
+              if (!note.trim()) { Shell.toast('请填写处理说明', 'error'); return; }
+              Shell.toast('已提交处理结果(演示)', 'success'); Shell.closeModal();
+            } }
+        ]
+      });
+    };
+
+    var steps = ['信息录入', '资料审核', '产品上架', '在售运营'];
+    var curStep = p.status === '缺货' ? 2 : (p.status === '预售' ? 2 : (p.status === '在售' ? 3 : 1));
+    var sbox = document.getElementById('steps');
+    steps.forEach(function (s, i) {
+      var cls = i < curStep ? 'done' : (i === curStep ? 'current' : '');
+      var el = document.createElement('div'); el.className = 'detail-step ' + cls;
+      el.innerHTML = '<div class="s-dot">' + (i < curStep ? '✓' : (i + 1)) + '</div><div class="s-label">' + s + '</div>';
+      sbox.appendChild(el);
+    });
+
+    function info(box, pairs) {
+      document.getElementById(box).innerHTML = pairs.map(function (kv) {
+        var wide = kv[2] ? ' wide' : '';
+        return '<div class="info-item' + wide + '"><div class="k">' + kv[0] + '</div><div class="v">' + (kv[1] != null && kv[1] !== '' ? kv[1] : '-') + '</div></div>';
+      }).join('');
+    }
+    info('info-main', [
+      ['产品唯一ID', p.uid], ['产品型号', p.code], ['父产品编号', p.parent], ['英文名称', p.en],
+      ['产品名称', p.name], ['分类', p.cat], ['品牌', p.brand], ['规格', p.spec],
+      ['价格(元)', p.price.toFixed(1)], ['库存', p.stock], ['区域', p.region], ['状态', p.status]
+    ]);
+    info('info-sec', [
+      ['供应商', p.supplier], ['更新时间', p.updated], ['紧急度', p.urgency], ['创建人', '张明'],
+      ['产品说明', p.desc, true]
+    ]);
+
+    document.getElementById('toggle-sec').onclick = function () {
+      var sec = document.getElementById('info-sec');
+      var hidden = sec.style.display === 'none';
+      sec.style.display = hidden ? '' : 'none';
+      this.textContent = hidden ? '收起次要信息' : '展开次要信息';
+    };
+
+    var sup = document.getElementById('supply-rows');
+    for (var i = 1; i <= 4; i++) {
+      var tr = document.createElement('tr');
+      tr.innerHTML = '<td>B' + (2026000 + i) + '</td><td>' + p.supplier + '</td><td class="num">' + (i * 120) + '</td><td class="num">' + (p.price * 0.72).toFixed(1) + '</td><td>2026-0' + i + '-1' + i + '</td>';
+      sup.appendChild(tr);
+    }
+
+    // 流程记录时间线
+    var flow = [
+      { title: '产品上架', time: p.updated + ' 10:21', actor: '张明', role: '管理员', note: '资料审核通过,正式上架在售。', status: 'done' },
+      { title: '资料审核', time: '2026-09-30 16:08', actor: '老张', role: '审核员', note: '规格与图片核对无误。', status: 'done' },
+      { title: '信息录入', time: '2026-09-29 09:12', actor: 'Lucy', role: '运营', note: '创建产品并录入基础信息。', status: 'done' },
+      { title: '待运营跟进', time: '-', actor: '待分配', role: '', note: '上架后跟进销售表现。', status: 'pending' }
+    ];
+    document.getElementById('flow').innerHTML = flow.map(function (f) {
+      return '<div class="flow-item ' + (f.status === 'pending' ? 'pending' : '') + '">' +
+        '<div class="flow-head"><span class="f-title">' + f.title + '</span><span class="f-time">' + f.time + '</span></div>' +
+        '<div class="flow-actor"><span class="avatar">' + f.actor.slice(0, 1) + '</span>' + f.actor + (f.role ? ' · ' + f.role : '') + '</div>' +
+        '<div class="flow-note">' + f.note + '</div></div>';
+    }).join('');
+  };
+  </script>
+</body>
+</html>

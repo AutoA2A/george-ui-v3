@@ -1,0 +1,4 @@
+# 绝不提交内置令牌与本地部署产物
+.secrets/
+*.token
+deploy-report.json
